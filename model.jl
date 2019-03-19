@@ -1,8 +1,8 @@
-using Knet: @diff, Param, value, grad
+using Knet: @diff, Param, value, grad, params
 using Knet: sigm, tanh, softmax
 
 
-const memory_size = 50
+const memory_size = 5
 
 
 
@@ -31,6 +31,8 @@ mutable struct Layer
     wsi::Param
     wss::Param
     wsm::Param
+
+    w::Param
 
 end
 
@@ -68,7 +70,10 @@ begin
     wss = Param(randn(layer_size, layer_size))
     wsm = Param(randn(memory_size, layer_size))
 
-Layer(wri,wrs,wrm,wwi,wws,wwm,wki,wks,wkm,wfi,wfs,wfm,wii,wis,wim,wsi,wss,wsm)
+    # intermediate memory
+    w = Param(randn(layer_size, memory_size))
+
+Layer(wri,wrs,wrm,wwi,wws,wwm,wki,wks,wkm,wfi,wfs,wfm,wii,wis,wim,wsi,wss,wsm,w)
 end
 
 
@@ -77,49 +82,92 @@ begin
 
     read   = softmax(in * layer.wri + state * layer.wrs + memory * layer.wrm)
     write  = softmax(in * layer.wwi + state * layer.wws + memory * layer.wwm)
-    attn_m = read .* tanh.(memory)
+    attn_m = read .* memory
 
     keep   = sigm.(in * layer.wki + state * layer.wks + attn_m * layer.wkm)
     forget = sigm.(in * layer.wfi + state * layer.wfs + attn_m * layer.wfm)
     interm = tanh.(in * layer.wii + state * layer.wis + attn_m * layer.wim)
     show   = sigm.(in * layer.wsi + state * layer.wss + attn_m * layer.wsm)
 
-    state  = forget .* state + keep .* interm
-    out    = show .* state
+    interm_m = tanh.(interm * layer.w)
+    state    = forget .* state + keep .* interm
+    out      = show .* state
 
-    memory += write
+    memory += write .* interm_m
 
 (out, state, memory)
 end
 
 
 
-main() =
+in_size = 10
+l_size = 10
+
+
+seq_len = 10
+hm_data = 20
+
+
+
+lstm = Layer(in_size,l_size)
+
+state = zeros(1,l_size)
+
+memory = zeros(1,memory_size)
+
+
+data = [[randn(1,in_size) for _ in 1:seq_len] for __ in 1:hm_data]
+
+
+
+main(model, state, memory, data) =
 begin
 
-    seq_len = 2
+    for datapoint in data
 
-    in_size = 10
-    l_size = 5
+        in_data = datapoint[1:end-1]
+        out_data = datapoint[2:end]
 
-    lstm = Layer(in_size,l_size)
 
-    in_data = [randn(1,in_size) for _ in 1:seq_len]
+        g = @diff begin
 
-    state = zeros(1,l_size)
+            outs = []
+            for timestep in in_data
 
-    memory = zeros(1,memory_size)
+                out, state, memory = lstm(timestep, state, memory)
+                push!(outs, out)
 
-    for timestep in in_data
+            end
 
-    out, state, memory = lstm(timestep, state, memory)
-        @show out
-        @show state
-        @show memory
+        sum(sum([(e1-e2).^2 for (e1,e2) in zip(outs, out_data)]))
+        end
+
+        for param in params(lstm)
+            param += .01 .* grad(g, param)
+        end
 
     end
 
 end
 
 
-main()
+test(model, state, memory, data) =
+
+    for timestep in data[1]
+
+        out, state, memory = lstm(timestep, state, memory)
+
+        # @show out
+        # @show state
+        @show memory
+        println(" ")
+
+    end
+
+
+
+test(lstm, state, memory, data)
+
+main(lstm, state, memory, data)
+
+test(lstm, state, memory, data)
