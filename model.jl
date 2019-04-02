@@ -100,74 +100,72 @@ end
 
 
 
-in_size = 10
-l_size = 10
+immutable struct Enc
+    layers
+end
 
-
-seq_len = 10
-hm_data = 20
-
-
-
-lstm = Layer(in_size,l_size)
-
-state = zeros(1,l_size)
-
-memory = zeros(1,memory_size)
-
-
-data = [[randn(1,in_size) for _ in 1:seq_len] for __ in 1:hm_data]
-
-
-
-main(model, state, memory, data) =
+Enc(in_size, hiddens, out_size) =
 begin
-
-    for datapoint in data
-
-        in_data = datapoint[1:end-1]
-        out_data = datapoint[2:end]
-
-
-        g = @diff begin
-
-            outs = []
-            for timestep in in_data
-
-                out, state, memory = lstm(timestep, state, memory)
-                push!(outs, out)
-
-            end
-
-        sum(sum([(e1-e2).^2 for (e1,e2) in zip(outs, out_data)]))
+    hm_layers = length(hiddens)+1
+    layers = []
+    for i in 1:hm_layers
+        if     i == 1         i, o = in_size, hiddens[1]
+        elseif i == hm_layers i, o = hiddens[end], out_size
+        else                  i, o = hiddens[i-1], hiddens[i]
         end
-
-        for param in params(lstm)
-            param += .01 .* grad(g, param)
-        end
-
+        push!(layers, Layer(i,o))
     end
 
+Enc(layers)
+end
+
+(enc::Enc)(input, state, memory) =
+begin
+    results = []
+    for layer in enc.layers
+        r = layer(input, state, memory)
+        input, state, memory = r
+        push!(results, r)
+    end
+
+results
 end
 
 
-test(model, state, memory, data) =
 
-    for timestep in data[1]
+immutable struct Dec
+    layers
+end
 
-        out, state, memory = lstm(timestep, state, memory)
-
-        # @show out
-        # @show state
-        @show memory
-        println(" ")
-
+Dec(in_size, hiddens, out_size) =
+begin
+    hm_layers = length(hiddens)+1
+    layers = []
+    for i in 1:hm_layers
+        if     i == 1         i, o = in_size, hiddens[1]
+        elseif i == hm_layers i, o = hiddens[end], out_size
+        else                  i, o = hiddens[i-1], hiddens[i]
+        end
+        push!(layers, Layer(i,o))
     end
 
+Enc(layers)
+end
+
+(dec::Enc)(input, state, memory, enc_outs) =
+begin
+    for layer in enc.layers
 
 
-test(lstm, state, memory, data)
 
-main(lstm, state, memory, data)
+        input, state, memory = layer(input, state, memory)
+    end
+end
 
-test(lstm, state, memory, data)
+
+
+
+prop(enc, dec, enc_state, dec_state, memory) =
+begin
+    
+end
