@@ -2,19 +2,12 @@ using Knet: @diff, Param, value, grad, params
 using Knet: sigm, tanh, softmax
 
 
+const in_size        = 52
+const hiddens        = (12, 20)
+const out_size       = 52
 
-
-
-
-const memory_size = 5
-
-const in_size       = 52
-const hidden_layers = (12, 20)
-const out_size      = 52
-
-const turing_layers = (8) # TODO
-
-    # TODO implement a char2char with a neural-turing-layers for write attention
+const memory_size    = 5
+const turing_hiddens = (8) # TODO
 
 
 
@@ -112,26 +105,39 @@ end
 
 
 
-make(in_size, hiddens, out_size) =
+make() =
 begin
     model = []
+    hm_layers = length(hiddens)+1
     for i in 1:hm_layers
         if     i == 1         i, o = in_size, hiddens[1]
         elseif i == hm_layers i, o = hiddens[end], out_size
         else                  i, o = hiddens[i-1], hiddens[i]
         end
-        push!(model, layer(i,o))
+        push!(model, Layer(i,o))
+    end
 
 model
 end
+
 
 
 zero_state = [zeros(1,l_size) for l_size in (hiddens..., out_size)]
 zero_memory = zeros(1,memory_size)
 
 
-prop(data, (enc, dec); enc_state=zero_state, dec_state=zero_state, memory=zero_memory) =
+prop(model, data; state=zero_state, memory=zero_memory) =
 begin
-    ... = enc(data, enc_state, memory)
-    ... = dec(data, dec_state, memory)
+    response = []
+    for timestep in data
+        for layer in model
+            data, state, memory = layer(data, state, memory)
+            push!(response, data)
+        end
+    end
+
+(response, state, memory)
 end
+
+
+loss(seq1, seq2) = sum([sum((out_e - y_e).^2) for (s1,s2) in zip(seq1, seq2)])
