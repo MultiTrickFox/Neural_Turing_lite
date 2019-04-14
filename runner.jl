@@ -7,6 +7,8 @@ const seq_len   = 10
 const hm_data   = 20
 const hm_epochs = 10
 
+const lr = .01
+
 
 model = make()
 data = [[randn(1,in_size) for _ in 1:seq_len] for __ in 1:hm_data]
@@ -18,9 +20,18 @@ for i in 1:hm_epochs
     for seq in data
         input = seq[1:end-1]
         label = seq[2:end]
-        response, state, memory = prop(model, input)
-        l += loss(response, label)
+        result = @diff begin
+            response, state, memory = prop(model, input)
+            loss(response, label)
+        end
+        l += value(result)
+        for layer in model
+            for param in fieldnames(Layer)
+                setfield!(layer, param, Param(getfield(layer, param) - grad(result, getfield(layer, param)) * lr))
+            end
+        end
     end
+
     @show i, l
 end ; runner()
 
