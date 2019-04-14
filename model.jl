@@ -2,7 +2,19 @@ using Knet: @diff, Param, value, grad, params
 using Knet: sigm, tanh, softmax
 
 
+
+
+
+
 const memory_size = 5
+
+const in_size       = 52
+const hidden_layers = (12, 20)
+const out_size      = 52
+
+const turing_layers = (8) # TODO
+
+    # TODO implement a char2char with a neural-turing-layers for write attention
 
 
 
@@ -91,7 +103,7 @@ begin
 
     interm_m = tanh.(interm * layer.w)
     state    = forget .* state + keep .* interm
-    out      = show .* state
+    out      = show .* tanh.(state)
 
     memory += write .* interm_m
 
@@ -100,72 +112,26 @@ end
 
 
 
-immutable struct Enc
-    layers
-end
-
-Enc(in_size, hiddens, out_size) =
+make(in_size, hiddens, out_size) =
 begin
-    hm_layers = length(hiddens)+1
-    layers = []
+    model = []
     for i in 1:hm_layers
         if     i == 1         i, o = in_size, hiddens[1]
         elseif i == hm_layers i, o = hiddens[end], out_size
         else                  i, o = hiddens[i-1], hiddens[i]
         end
-        push!(layers, Layer(i,o))
-    end
+        push!(model, layer(i,o))
 
-Enc(layers)
+model
 end
 
-(enc::Enc)(input, state, memory) =
+
+zero_state = [zeros(1,l_size) for l_size in (hiddens..., out_size)]
+zero_memory = zeros(1,memory_size)
+
+
+prop(data, (enc, dec); enc_state=zero_state, dec_state=zero_state, memory=zero_memory) =
 begin
-    results = []
-    for layer in enc.layers
-        r = layer(input, state, memory)
-        input, state, memory = r
-        push!(results, r)
-    end
-
-results
-end
-
-
-
-immutable struct Dec
-    layers
-end
-
-Dec(in_size, hiddens, out_size) =
-begin
-    hm_layers = length(hiddens)+1
-    layers = []
-    for i in 1:hm_layers
-        if     i == 1         i, o = in_size, hiddens[1]
-        elseif i == hm_layers i, o = hiddens[end], out_size
-        else                  i, o = hiddens[i-1], hiddens[i]
-        end
-        push!(layers, Layer(i,o))
-    end
-
-Enc(layers)
-end
-
-(dec::Enc)(input, state, memory, enc_outs) =
-begin
-    for layer in enc.layers
-
-
-
-        input, state, memory = layer(input, state, memory)
-    end
-end
-
-
-
-
-prop(enc, dec, enc_state, dec_state, memory) =
-begin
-    
+    ... = enc(data, enc_state, memory)
+    ... = dec(data, dec_state, memory)
 end
