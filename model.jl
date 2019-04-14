@@ -2,9 +2,9 @@ using Knet: @diff, Param, value, grad, params
 using Knet: sigm, tanh, softmax
 
 
-const in_size        = 52
-const hiddens        = (12, 20)
-const out_size       = 52
+const in_size        = 10
+const hiddens        = (15)
+const out_size       = 10
 
 const memory_size    = 5
 const turing_hiddens = (8) # TODO
@@ -77,6 +77,7 @@ begin
 
     # intermediate memory
     w = Param(randn(layer_size, memory_size))
+    # TODO : hidden params wll be added here.
 
 Layer(wri,wrs,wrm,wwi,wws,wwm,wki,wks,wkm,wfi,wfs,wfm,wii,wis,wim,wsi,wss,wsm,w)
 end
@@ -122,22 +123,25 @@ end
 
 
 
-zero_state = [zeros(1,l_size) for l_size in (hiddens..., out_size)]
+zero_states = [zeros(1,l_size) for l_size in (hiddens..., out_size)]
 zero_memory = zeros(1,memory_size)
 
 
-prop(model, data; state=zero_state, memory=zero_memory) =
+prop(model, data; states=zero_states, memory=zero_memory) =
 begin
     response = []
     for timestep in data
-        for layer in model
-            data, state, memory = layer(data, state, memory)
-            push!(response, data)
+        neu_states = []
+        for (layer, state) in zip(model, states)
+            timestep, state, memory = layer(timestep, state, memory)
+            push!(neu_states, state)
         end
+        states = neu_states
+        push!(response, timestep)
     end
 
-(response, state, memory)
+(response, states, memory)
 end
 
 
-loss(seq1, seq2) = sum([sum((out_e - y_e).^2) for (s1,s2) in zip(seq1, seq2)])
+loss(seq1, seq2) = sum([sum((s1 - s2).^2) for (s1,s2) in zip(seq1, seq2)])

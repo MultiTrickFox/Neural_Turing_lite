@@ -1,23 +1,28 @@
 include("model.jl")
 
+using Knet: Param, @diff, value, grad
 
-const seq_len = 10
-const hm_data = 20
+
+const seq_len   = 10
+const hm_data   = 20
+const hm_epochs = 10
 
 
 model = make()
 data = [[randn(1,in_size) for _ in 1:seq_len] for __ in 1:hm_data]
 
 
-l = 0
-for d in data
-    input = d[1:end-1]
-    label = d[2:end]
-    response, state, memory = prop(model, input)
-    l += loss(response, label)
-end
-@show l
-
+runner() =
+for i in 1:hm_epochs
+    l = 0
+    for seq in data
+        input = seq[1:end-1]
+        label = seq[2:end]
+        response, state, memory = prop(model, input)
+        l += loss(response, label)
+    end
+    @show i, l
+end ; runner()
 
 
 
